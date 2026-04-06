@@ -11,6 +11,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
+import { getIconUrl } from "@/lib/pgData";
 import type { RecipeEntry } from "@/types/character";
 
 interface RecipeTableProps {
@@ -26,9 +27,24 @@ export default function RecipeTable({ recipes, searchQuery }: RecipeTableProps) 
       {
         accessorKey: "recipeName",
         header: "Recipe",
-        cell: (info) => (
-          <span className="font-medium">{info.getValue() as string}</span>
-        ),
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <div className="flex items-center gap-2">
+              {row.iconId != null && (
+                <img
+                  src={getIconUrl(row.iconId)}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="shrink-0 rounded"
+                  loading="lazy"
+                />
+              )}
+              <span className="font-medium">{info.getValue() as string}</span>
+            </div>
+          );
+        },
         size: 300,
       },
       {

@@ -38,7 +38,7 @@ export default function Home() {
 
       <section>
         <h2 className="text-lg font-semibold mb-4">
-          Skill Summary
+          Crafting Skills
           {skillData.entries.length > 0 && (
             <span className="text-sm font-normal text-muted ml-2">
               {skillData.entries.length} members &middot; {skillData.skillNames.length} skills

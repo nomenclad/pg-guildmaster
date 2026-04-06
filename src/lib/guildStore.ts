@@ -1,6 +1,33 @@
 import { db } from "./db";
 import { parseCharacterJson } from "./parser";
+import { loadRecipeLookup } from "./pgData";
 import type { CharacterRow, SkillSummaryEntry, RecipeEntry } from "@/types/character";
+
+/** Crafting / trade skills in Project Gorgon. Only these appear in the skill summary. */
+const CRAFTING_SKILLS = new Set([
+  "Alchemy",
+  "Armor Patching",
+  "Brewing",
+  "Butchering",
+  "Calligraphy",
+  "Carpentry",
+  "Cheesemaking",
+  "Cooking",
+  "Dying",
+  "First Aid",
+  "Fletching",
+  "Flower Arrangement",
+  "Gardening",
+  "Leatherworking",
+  "Lore",
+  "Mycology",
+  "Sigil Scripting",
+  "Skinning",
+  "Tailoring",
+  "Tanning",
+  "Toolcrafting",
+  "Transmutation",
+]);
 
 export async function getCharacters(): Promise<CharacterRow[]> {
   const all = await db.characters.toArray();
@@ -102,6 +129,7 @@ export async function getSkillSummary(): Promise<{
   const skillsByCharId = new Map<number, Record<string, number>>();
 
   for (const s of allSkills) {
+    if (!CRAFTING_SKILLS.has(s.skillName)) continue;
     allSkillNames.add(s.skillName);
     if (!skillsByCharId.has(s.characterId)) {
       skillsByCharId.set(s.characterId, {});
@@ -124,8 +152,11 @@ export async function getRecipes(skillFilter?: string | null): Promise<{
   recipes: RecipeEntry[];
   skills: string[];
 }> {
-  const allCharacters = await db.characters.toArray();
-  const allRecipes = await db.characterRecipes.toArray();
+  const [allCharacters, allRecipes, lookup] = await Promise.all([
+    db.characters.toArray(),
+    db.characterRecipes.toArray(),
+    loadRecipeLookup(),
+  ]);
 
   const charNameById = new Map<number, string>();
   for (const c of allCharacters) {
@@ -136,16 +167,24 @@ export async function getRecipes(skillFilter?: string | null): Promise<{
   const recipeMap = new Map<string, RecipeEntry>();
 
   for (const row of allRecipes) {
-    if (row.skillName) allSkills.add(row.skillName);
+    // Resolve display name and icon from CDN data
+    const pgRecipe = lookup[row.recipeName];
+    const displayName = pgRecipe?.Name ?? formatFallbackName(row.recipeName);
+    const skill = pgRecipe?.Skill ?? row.skillName;
+    const iconId = pgRecipe?.IconId ?? null;
+
+    if (skill) allSkills.add(skill);
 
     // Apply skill filter if provided
-    if (skillFilter && row.skillName !== skillFilter) continue;
+    if (skillFilter && skill !== skillFilter) continue;
 
     const key = row.recipeName;
     if (!recipeMap.has(key)) {
       recipeMap.set(key, {
-        recipeName: row.recipeName,
-        skill: row.skillName,
+        recipeName: displayName,
+        recipeKey: row.recipeName,
+        skill,
+        iconId,
         knownBy: [],
       });
     }
@@ -163,4 +202,18 @@ export async function getRecipes(skillFilter?: string | null): Promise<{
     recipes,
     skills: Array.from(allSkills).sort(),
   };
+}
+
+/** Turn "recipe_Cooking_CheeseOmelet" into "Cheese Omelet" as a fallback */
+function formatFallbackName(raw: string): string {
+  const parts = raw.split("_");
+  // Strip leading "recipe" and skill prefix
+  const meaningful = parts.filter(
+    (p, i) => !(i === 0 && p.toLowerCase() === "recipe") && !(i === 1 && CRAFTING_SKILLS.has(p))
+  );
+  if (meaningful.length === 0) return raw;
+  // Split PascalCase words
+  return meaningful
+    .map((p) => p.replace(/([a-z])([A-Z])/g, "$1 $2"))
+    .join(" ");
 }
