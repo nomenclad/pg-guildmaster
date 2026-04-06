@@ -27,6 +27,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Fetch PG game data from CDN
+        run: node scripts/fetch-pg-data.mjs
+
       - run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
