@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { parseCharacterJson } from "./parser";
-import { loadRecipeLookup } from "./pgData";
+import { getRecipeLookup } from "./pgData";
 import type { CharacterRow, SkillSummaryEntry, RecipeEntry } from "@/types/character";
 
 /** Crafting / trade skills in Project Gorgon. Only these appear in the skill summary. */
@@ -152,11 +152,11 @@ export async function getRecipes(skillFilter?: string | null): Promise<{
   recipes: RecipeEntry[];
   skills: string[];
 }> {
-  const [allCharacters, allRecipes, lookup] = await Promise.all([
+  const [allCharacters, allRecipes] = await Promise.all([
     db.characters.toArray(),
     db.characterRecipes.toArray(),
-    loadRecipeLookup(),
   ]);
+  const lookup = getRecipeLookup();
 
   const charNameById = new Map<number, string>();
   for (const c of allCharacters) {
