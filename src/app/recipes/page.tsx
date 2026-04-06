@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import RecipeTable from "@/components/RecipeTable";
 import SkillFilter from "@/components/SkillFilter";
 import { useFilterStore } from "@/stores/filterStore";
+import { getRecipes } from "@/lib/guildStore";
 import type { RecipeEntry } from "@/types/character";
 
 export default function RecipesPage() {
@@ -16,11 +17,7 @@ export default function RecipesPage() {
   useEffect(() => {
     async function fetchRecipes() {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (recipeSkillFilter) params.set("skill", recipeSkillFilter);
-
-      const res = await fetch(`/api/recipes?${params}`);
-      const data = await res.json();
+      const data = await getRecipes(recipeSkillFilter);
       setRecipes(data.recipes);
       setAllSkills(data.skills);
       setLoading(false);

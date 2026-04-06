@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import CharacterUpload from "@/components/CharacterUpload";
 import SkillSummaryTable from "@/components/SkillSummaryTable";
+import { getCharacters, getSkillSummary } from "@/lib/guildStore";
 import type { CharacterRow, SkillSummaryEntry } from "@/types/character";
 
 export default function Home() {
@@ -15,12 +16,10 @@ export default function Home() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [charRes, skillRes] = await Promise.all([
-      fetch("/api/characters"),
-      fetch("/api/skills"),
+    const [chars, skills] = await Promise.all([
+      getCharacters(),
+      getSkillSummary(),
     ]);
-    const chars = await charRes.json();
-    const skills = await skillRes.json();
     setCharacters(chars);
     setSkillData(skills);
     setLoading(false);

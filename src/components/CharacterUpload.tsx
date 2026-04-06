@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { uploadCharacter, deleteCharacter } from "@/lib/guildStore";
 import type { CharacterRow } from "@/types/character";
 
 interface CharacterUploadProps {
@@ -21,20 +22,11 @@ export default function CharacterUpload({ characters, onUploadComplete }: Charac
     const errors: string[] = [];
 
     for (const file of Array.from(files)) {
-      const formData = new FormData();
-      formData.append("file", file);
-
       try {
-        const res = await fetch("/api/characters", { method: "POST", body: formData });
-        const data = await res.json();
-
-        if (!res.ok) {
-          errors.push(`${file.name}: ${data.error}`);
-        } else {
-          results.push(`${data.name}: ${data.skillCount} skills, ${data.recipeCount} recipes`);
-        }
-      } catch {
-        errors.push(`${file.name}: Network error`);
+        const data = await uploadCharacter(file);
+        results.push(`${data.name}: ${data.skillCount} skills, ${data.recipeCount} recipes`);
+      } catch (e) {
+        errors.push(`${file.name}: ${e instanceof Error ? e.message : "Unknown error"}`);
       }
     }
 
@@ -50,7 +42,7 @@ export default function CharacterUpload({ characters, onUploadComplete }: Charac
   }, [onUploadComplete]);
 
   const handleDelete = async (id: number) => {
-    await fetch(`/api/characters/${id}`, { method: "DELETE" });
+    await deleteCharacter(id);
     onUploadComplete();
   };
 

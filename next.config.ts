@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  output: "export",
+  basePath: "/pg-guildmaster",
 };
 
 export default nextConfig;
