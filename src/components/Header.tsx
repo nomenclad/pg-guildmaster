@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const tabs = [
-  { label: "Guild Skills", href: "/" },
+  { label: "Crafting Skills", href: "/" },
   { label: "Recipes", href: "/recipes" },
 ];
 

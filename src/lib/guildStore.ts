@@ -2,6 +2,32 @@ import { db } from "./db";
 import { parseCharacterJson } from "./parser";
 import type { CharacterRow, SkillSummaryEntry, RecipeEntry } from "@/types/character";
 
+/** Crafting / trade skills in Project Gorgon. Only these appear in the skill summary. */
+const CRAFTING_SKILLS = new Set([
+  "Alchemy",
+  "Armor Patching",
+  "Brewing",
+  "Butchering",
+  "Calligraphy",
+  "Carpentry",
+  "Cheesemaking",
+  "Cooking",
+  "Dying",
+  "First Aid",
+  "Fletching",
+  "Flower Arrangement",
+  "Gardening",
+  "Leatherworking",
+  "Lore",
+  "Mycology",
+  "Sigil Scripting",
+  "Skinning",
+  "Tailoring",
+  "Tanning",
+  "Toolcrafting",
+  "Transmutation",
+]);
+
 export async function getCharacters(): Promise<CharacterRow[]> {
   const all = await db.characters.toArray();
   return all.map((c) => ({
@@ -102,6 +128,7 @@ export async function getSkillSummary(): Promise<{
   const skillsByCharId = new Map<number, Record<string, number>>();
 
   for (const s of allSkills) {
+    if (!CRAFTING_SKILLS.has(s.skillName)) continue;
     allSkillNames.add(s.skillName);
     if (!skillsByCharId.has(s.characterId)) {
       skillsByCharId.set(s.characterId, {});
