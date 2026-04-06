@@ -3,17 +3,18 @@ import type { ParsedCharacter, ParsedSkill, ParsedRecipe } from "@/types/charact
 /**
  * Parse a Project Gorgon character.json export file.
  *
- * The exact format will be confirmed with a sample file, but based on
- * community tools the structure is approximately:
+ * Known format (from community tools and source analysis):
  * {
- *   "Name": "CharacterName",
- *   "CurrentServer": "ServerName",
+ *   "Character": "CharacterName",
+ *   "ServerName": "ServerName",
+ *   "Race": "Human",
+ *   "Timestamp": "2024-01-01T00:00:00",
  *   "Skills": {
- *     "SkillName": { "Level": 50, "XP": 12345 },
+ *     "Sword": { "Level": 50, "BonusLevels": 0, "XpTowardNextLevel": 1234, "XpNeededForNextLevel": 5000 },
  *     ...
  *   },
  *   "RecipeCompletions": {
- *     "recipe_1234": { "SkillUsed": "Cooking", ... },
+ *     "recipe_1234": { ... },
  *     ...
  *   }
  * }
@@ -21,9 +22,9 @@ import type { ParsedCharacter, ParsedSkill, ParsedRecipe } from "@/types/charact
 export function parseCharacterJson(raw: string, filename?: string): ParsedCharacter {
   const data = JSON.parse(raw);
 
-  // Extract name - try multiple known field names
-  let name = data.Name || data.name || data.CharacterName || "";
-  let server = data.CurrentServer || data.Server || data.server || "";
+  // Extract name - try known field names in priority order
+  let name = data.Character || data.Name || data.name || data.CharacterName || "";
+  let server = data.ServerName || data.CurrentServer || data.Server || data.server || "";
 
   // Fallback: parse from filename pattern Character_<name>_<server>.json
   if (!name && filename) {
@@ -47,7 +48,10 @@ export function parseCharacterJson(raw: string, filename?: string): ParsedCharac
       skills.push({
         name: skillName,
         level: Number(sd.Level ?? sd.level ?? 0),
-        xp: sd.XP !== undefined ? Number(sd.XP) : (sd.xp !== undefined ? Number(sd.xp) : undefined),
+        xp: sd.XpTowardNextLevel !== undefined ? Number(sd.XpTowardNextLevel)
+          : sd.XP !== undefined ? Number(sd.XP)
+          : sd.xp !== undefined ? Number(sd.xp)
+          : undefined,
       });
     } else if (typeof skillData === "number") {
       skills.push({ name: skillName, level: skillData });
@@ -56,19 +60,24 @@ export function parseCharacterJson(raw: string, filename?: string): ParsedCharac
 
   // Parse recipes - try multiple known structures
   const recipes: ParsedRecipe[] = [];
-
-  // Try RecipeCompletions format
   const recipeObj = data.RecipeCompletions || data.Recipes || data.recipes || data.KnownRecipes || {};
   for (const [recipeName, recipeData] of Object.entries(recipeObj)) {
+    let skill: string | undefined;
+
     if (typeof recipeData === "object" && recipeData !== null) {
       const rd = recipeData as Record<string, unknown>;
-      recipes.push({
-        name: recipeName,
-        skill: (rd.SkillUsed || rd.Skill || rd.skill || undefined) as string | undefined,
-      });
-    } else {
-      recipes.push({ name: recipeName });
+      skill = (rd.SkillUsed || rd.Skill || rd.skill || undefined) as string | undefined;
     }
+
+    // Try to extract skill from recipe internal name (e.g., "Recipe_Cooking_CheeseOmelet")
+    if (!skill) {
+      const parts = recipeName.split("_");
+      if (parts.length >= 2 && parts[0].toLowerCase() === "recipe") {
+        skill = parts[1];
+      }
+    }
+
+    recipes.push({ name: recipeName, skill });
   }
 
   return { name, server, skills, recipes };
