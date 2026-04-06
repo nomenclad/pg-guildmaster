@@ -30,6 +30,8 @@ export interface SkillSummaryEntry {
 
 export interface RecipeEntry {
   recipeName: string;
+  recipeKey: string;
   skill: string | null;
+  iconId: number | null;
   knownBy: string[];
 }
