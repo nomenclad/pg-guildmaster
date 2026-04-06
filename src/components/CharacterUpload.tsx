@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { uploadCharacter, deleteCharacter } from "@/lib/guildStore";
+import { useState, useCallback, useEffect } from "react";
+import {
+  uploadCharacter,
+  deleteCharacter,
+  hasAdminPassword,
+  setAdminPassword,
+  verifyAdminPassword,
+} from "@/lib/guildStore";
 import type { CharacterRow } from "@/types/character";
 
 interface CharacterUploadProps {
@@ -13,6 +19,19 @@ export default function CharacterUpload({ characters, onUploadComplete }: Charac
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Admin password state
+  const [passwordSet, setPasswordSet] = useState<boolean | null>(null);
+  const [showPasswordDialog, setShowPasswordDialog] = useState<
+    { mode: "setup" } | { mode: "verify"; charId: number } | null
+  >(null);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  useEffect(() => {
+    hasAdminPassword().then(setPasswordSet);
+  }, []);
 
   const handleUpload = useCallback(async (files: FileList | File[]) => {
     setUploading(true);
@@ -41,8 +60,41 @@ export default function CharacterUpload({ characters, onUploadComplete }: Charac
     onUploadComplete();
   }, [onUploadComplete]);
 
-  const handleDelete = async (id: number) => {
-    await deleteCharacter(id);
+  const handleRemoveClick = (charId: number) => {
+    if (!passwordSet) {
+      setShowPasswordDialog({ mode: "setup" });
+    } else {
+      setShowPasswordDialog({ mode: "verify", charId });
+    }
+    setPasswordInput("");
+    setPasswordConfirm("");
+    setPasswordError("");
+  };
+
+  const handlePasswordSetup = async () => {
+    if (passwordInput.length < 4) {
+      setPasswordError("Password must be at least 4 characters");
+      return;
+    }
+    if (passwordInput !== passwordConfirm) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+    await setAdminPassword(passwordInput);
+    setPasswordSet(true);
+    setShowPasswordDialog(null);
+    setMessage({ type: "success", text: "Admin password set. Use it to remove guild members." });
+  };
+
+  const handlePasswordVerify = async () => {
+    if (!showPasswordDialog || showPasswordDialog.mode !== "verify") return;
+    const ok = await verifyAdminPassword(passwordInput);
+    if (!ok) {
+      setPasswordError("Incorrect password");
+      return;
+    }
+    await deleteCharacter(showPasswordDialog.charId);
+    setShowPasswordDialog(null);
     onUploadComplete();
   };
 
@@ -90,6 +142,88 @@ export default function CharacterUpload({ characters, onUploadComplete }: Charac
         </div>
       )}
 
+      {/* Password dialog */}
+      {showPasswordDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg p-6 w-80 space-y-4">
+            {showPasswordDialog.mode === "setup" ? (
+              <>
+                <h3 className="text-sm font-semibold">Set Admin Password</h3>
+                <p className="text-xs text-muted">
+                  Create a password to protect guild member removal.
+                </p>
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-background border border-border rounded-md text-sm focus:outline-none focus:border-accent"
+                  autoFocus
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-background border border-border rounded-md text-sm focus:outline-none focus:border-accent"
+                  onKeyDown={(e) => e.key === "Enter" && handlePasswordSetup()}
+                />
+                {passwordError && (
+                  <p className="text-xs text-danger">{passwordError}</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowPasswordDialog(null)}
+                    className="px-3 py-1.5 text-sm text-muted hover:text-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePasswordSetup}
+                    className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-md transition-colors"
+                  >
+                    Set Password
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-sm font-semibold">Admin Password Required</h3>
+                <p className="text-xs text-muted">
+                  Enter the admin password to remove this guild member.
+                </p>
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-background border border-border rounded-md text-sm focus:outline-none focus:border-accent"
+                  autoFocus
+                  onKeyDown={(e) => e.key === "Enter" && handlePasswordVerify()}
+                />
+                {passwordError && (
+                  <p className="text-xs text-danger">{passwordError}</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowPasswordDialog(null)}
+                    className="px-3 py-1.5 text-sm text-muted hover:text-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePasswordVerify}
+                    className="px-3 py-1.5 bg-danger hover:bg-danger/80 text-white text-sm font-medium rounded-md transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Uploaded characters list */}
       {characters.length > 0 && (
         <div className="bg-card rounded-lg border border-border">
@@ -112,7 +246,7 @@ export default function CharacterUpload({ characters, onUploadComplete }: Charac
                     {new Date(char.uploadedAt).toLocaleDateString()}
                   </span>
                   <button
-                    onClick={() => handleDelete(char.id)}
+                    onClick={() => handleRemoveClick(char.id)}
                     className="text-xs text-danger hover:text-danger/80 transition-colors"
                   >
                     Remove

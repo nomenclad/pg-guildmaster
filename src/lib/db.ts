@@ -23,16 +23,29 @@ export interface CharacterRecipe {
   skillName: string | null;
 }
 
+export interface AppSetting {
+  key: string;
+  value: string;
+}
+
 const db = new Dexie("GuildmasterDB") as Dexie & {
   characters: EntityTable<Character, "id">;
   characterSkills: EntityTable<CharacterSkill, "id">;
   characterRecipes: EntityTable<CharacterRecipe, "id">;
+  settings: EntityTable<AppSetting, "key">;
 };
 
 db.version(1).stores({
   characters: "++id, [name+server]",
   characterSkills: "++id, characterId, [characterId+skillName]",
   characterRecipes: "++id, characterId, [characterId+recipeName]",
+});
+
+db.version(2).stores({
+  characters: "++id, [name+server]",
+  characterSkills: "++id, characterId, [characterId+skillName]",
+  characterRecipes: "++id, characterId, [characterId+recipeName]",
+  settings: "key",
 });
 
 export { db };

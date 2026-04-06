@@ -204,6 +204,35 @@ export async function getRecipes(skillFilter?: string | null): Promise<{
   };
 }
 
+// --- Admin password ---
+
+const ADMIN_PW_KEY = "adminPasswordHash";
+
+async function hashPassword(password: string): Promise<string> {
+  const data = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export async function hasAdminPassword(): Promise<boolean> {
+  const row = await db.settings.get(ADMIN_PW_KEY);
+  return !!row;
+}
+
+export async function setAdminPassword(password: string): Promise<void> {
+  const hash = await hashPassword(password);
+  await db.settings.put({ key: ADMIN_PW_KEY, value: hash });
+}
+
+export async function verifyAdminPassword(password: string): Promise<boolean> {
+  const row = await db.settings.get(ADMIN_PW_KEY);
+  if (!row) return false;
+  const hash = await hashPassword(password);
+  return hash === row.value;
+}
+
 /** Turn "recipe_Cooking_CheeseOmelet" into "Cheese Omelet" as a fallback */
 function formatFallbackName(raw: string): string {
   const parts = raw.split("_");
