@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { parseCharacterJson } from "./parser";
-import { getRecipeLookup } from "./pgData";
+import { getRecipeLookup } from "@/lib/pgData";
 import type { CharacterRow, SkillSummaryEntry, RecipeEntry } from "@/types/character";
 
 /** Crafting / trade skills in Project Gorgon. Only these appear in the skill summary. */
@@ -152,11 +152,11 @@ export async function getRecipes(skillFilter?: string | null): Promise<{
   recipes: RecipeEntry[];
   skills: string[];
 }> {
-  const [allCharacters, allRecipes] = await Promise.all([
+  const [allCharacters, allRecipes, lookup] = await Promise.all([
     db.characters.toArray(),
     db.characterRecipes.toArray(),
+    getRecipeLookup(),
   ]);
-  const lookup = getRecipeLookup();
 
   const charNameById = new Map<number, string>();
   for (const c of allCharacters) {
@@ -204,10 +204,47 @@ export async function getRecipes(skillFilter?: string | null): Promise<{
   };
 }
 
-/** Turn "recipe_Cooking_CheeseOmelet" into "Cheese Omelet" as a fallback */
+// --- Admin password ---
+
+const ADMIN_PW_KEY = "adminPasswordHash";
+
+async function hashPassword(password: string): Promise<string> {
+  const data = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export async function hasAdminPassword(): Promise<boolean> {
+  const row = await db.settings.get(ADMIN_PW_KEY);
+  return !!row;
+}
+
+export async function setAdminPassword(password: string): Promise<void> {
+  const hash = await hashPassword(password);
+  await db.settings.put({ key: ADMIN_PW_KEY, value: hash });
+}
+
+export async function verifyAdminPassword(password: string): Promise<boolean> {
+  const row = await db.settings.get(ADMIN_PW_KEY);
+  if (!row) return false;
+  const hash = await hashPassword(password);
+  return hash === row.value;
+}
+
+/**
+ * Best-effort display name when CDN data is unavailable.
+ * "recipe_7043"                   → "Recipe #7043"
+ * "Recipe_Cooking_CheeseOmelet"   → "Cheese Omelet"
+ */
 function formatFallbackName(raw: string): string {
+  // Numeric ID format: recipe_1234
+  const numMatch = raw.match(/^recipe_(\d+)$/i);
+  if (numMatch) return `Recipe #${numMatch[1]}`;
+
   const parts = raw.split("_");
-  // Strip leading "recipe" and skill prefix
+  // Strip leading "recipe" prefix and skill name
   const meaningful = parts.filter(
     (p, i) => !(i === 0 && p.toLowerCase() === "recipe") && !(i === 1 && CRAFTING_SKILLS.has(p))
   );

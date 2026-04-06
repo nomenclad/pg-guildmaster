@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const tabs = [
   { label: "Crafting Skills", href: "/" },
   { label: "Recipes", href: "/recipes" },
+  { label: "Game Data", href: "/data" },
 ];
 
 export default function Header() {
