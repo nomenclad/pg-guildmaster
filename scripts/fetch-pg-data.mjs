@@ -19,6 +19,51 @@ const OUT_FILE = join(OUT_DIR, "pg-recipes.json");
 const FILEVERSION_URL = "https://client.projectgorgon.com/fileversion.txt";
 const CDN_VERSION_DEFAULT = "458";
 
+/**
+ * Maps PG internal skill names (CamelCase) to display names.
+ * Covers the subset that appear in recipe InternalNames.
+ */
+const SKILL_NAME_MAP = {
+  "Alchemy": "Alchemy",
+  "ArmorPatching": "Armor Patching",
+  "Brewing": "Brewing",
+  "Butchering": "Butchering",
+  "Calligraphy": "Calligraphy",
+  "Carpentry": "Carpentry",
+  "Cheesemaking": "Cheesemaking",
+  "Cooking": "Cooking",
+  "Dying": "Dying",
+  "FirstAid": "First Aid",
+  "Fletching": "Fletching",
+  "FlowerArrangement": "Flower Arrangement",
+  "Gardening": "Gardening",
+  "Leatherworking": "Leatherworking",
+  "Lore": "Lore",
+  "Mycology": "Mycology",
+  "SigilScripting": "Sigil Scripting",
+  "Skinning": "Skinning",
+  "Tailoring": "Tailoring",
+  "Tanning": "Tanning",
+  "Toolcrafting": "Toolcrafting",
+  "Transmutation": "Transmutation",
+};
+
+function extractSkillFromInternalName(internalName) {
+  if (!internalName) return null;
+  const parts = internalName.split("_");
+  if (parts.length >= 2 && parts[0].toLowerCase() === "recipe") {
+    const raw = parts[1];
+    return SKILL_NAME_MAP[raw] || raw;
+  }
+  return null;
+}
+
+/** Add space before trailing tier suffix e.g. "Arrow Shaft2B" → "Arrow Shaft 2B" */
+function cleanRecipeName(name) {
+  if (!name) return name;
+  return name.replace(/([A-Za-z])(\d+[A-Z]?)$/, "$1 $2");
+}
+
 async function getCdnVersion() {
   try {
     const r = await fetch(FILEVERSION_URL);
@@ -68,10 +113,20 @@ async function main() {
   // Extract only the fields we need to keep bundle size small
   const slim = {};
   for (const [key, recipe] of Object.entries(raw)) {
+    // Derive skill from InternalName when Skill field is missing.
+    // InternalName format: "Recipe_SkillName_RecipeName" e.g. "Recipe_Cooking_CheeseOmelet"
+    let skill = recipe.Skill || null;
+    if (!skill && recipe.InternalName) {
+      skill = extractSkillFromInternalName(recipe.InternalName);
+    }
+    if (!skill && key) {
+      skill = extractSkillFromInternalName(key);
+    }
+
     slim[key] = {
-      Name: recipe.Name || null,
+      Name: cleanRecipeName(recipe.Name) || null,
       IconId: recipe.IconId ?? null,
-      Skill: recipe.Skill || null,
+      Skill: skill,
     };
   }
 

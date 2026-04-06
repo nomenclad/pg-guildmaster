@@ -8,6 +8,48 @@ export interface PgRecipe {
 }
 
 const CDN_VERSION_DEFAULT = "458";
+
+const SKILL_NAME_MAP: Record<string, string> = {
+  Alchemy: "Alchemy",
+  ArmorPatching: "Armor Patching",
+  Brewing: "Brewing",
+  Butchering: "Butchering",
+  Calligraphy: "Calligraphy",
+  Carpentry: "Carpentry",
+  Cheesemaking: "Cheesemaking",
+  Cooking: "Cooking",
+  Dying: "Dying",
+  FirstAid: "First Aid",
+  Fletching: "Fletching",
+  FlowerArrangement: "Flower Arrangement",
+  Gardening: "Gardening",
+  Leatherworking: "Leatherworking",
+  Lore: "Lore",
+  Mycology: "Mycology",
+  SigilScripting: "Sigil Scripting",
+  Skinning: "Skinning",
+  Tailoring: "Tailoring",
+  Tanning: "Tanning",
+  Toolcrafting: "Toolcrafting",
+  Transmutation: "Transmutation",
+};
+
+function extractSkill(internalName: string | null | undefined, key: string): string | null {
+  for (const src of [internalName, key]) {
+    if (!src) continue;
+    const parts = src.split("_");
+    if (parts.length >= 2 && parts[0].toLowerCase() === "recipe") {
+      const raw = parts[1];
+      return SKILL_NAME_MAP[raw] ?? raw;
+    }
+  }
+  return null;
+}
+
+function cleanName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  return name.replace(/([A-Za-z])(\d+[A-Z]?)$/, "$1 $2");
+}
 const FILEVERSION_URL = "https://client.projectgorgon.com/fileversion.txt";
 const RECIPES_SETTING_KEY = "pgRecipesJson";
 const CDN_VERSION_KEY = "pgCdnVersion";
@@ -66,14 +108,17 @@ export async function refreshFromCdn(): Promise<{ recipeCount: number; version: 
 
   const raw = await res.json();
 
-  // Extract only needed fields
+  // Extract only needed fields, deriving skill from InternalName when missing
   const slim: Record<string, PgRecipe> = {};
   for (const [key, recipe] of Object.entries(raw)) {
     const r = recipe as Record<string, unknown>;
+    const skill =
+      (r.Skill as string) ||
+      extractSkill(r.InternalName as string, key);
     slim[key] = {
-      Name: (r.Name as string) || null,
+      Name: cleanName(r.Name as string),
       IconId: (r.IconId as number) ?? null,
-      Skill: (r.Skill as string) || null,
+      Skill: skill,
     };
   }
 
